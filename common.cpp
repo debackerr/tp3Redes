@@ -117,13 +117,36 @@ unsigned short getsType(){
     }
 }
 
-unsigned short getsDestiny(){
-    printf("\n please type your destiny's identifier!\n >>");
-    fflush(stdin);
-    unsigned int id; scanf("%u", &id);
-    if( (id > 8191) || (id < 1)){
-        return -1;
-    }else{
-        return id;
+
+
+int checksExib( vector<client> &clients, unsigned short id){
+    int aux = -1;
+    for(long unsigned int s; s< clients.size(); s++){
+        if( clients[s].id == id){
+            aux++;
+        }
     }
+    return aux; 
+    //return 0 case id param is unused
+}
+
+unsigned short getsDestiny(unsigned short exhibitorID){
+
+    std::cout << "\nchoose message's destiny:" << std::endl;
+    unsigned int d;
+
+    while(1){            
+        std::cout << " [0] all exhibitors" << std::endl;
+        std::cout << " [" << exhibitorID <<"] connected exhibitor" << std::endl;
+        std::cin.ignore();
+        scanf("%u", &d);
+
+        if( (d == 0) || (d == exhibitorID)){
+           break;
+        }else{
+            std::cout << "invalid destination" << std::endl;
+        }
+    }
+    
+	return( (d == 0) ? d : exhibitorID);			
 }
