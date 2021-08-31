@@ -7,6 +7,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <iostream>
+#include <vector>
 
 #include "common.h"
 
@@ -35,10 +37,14 @@ int main(int argc, char **argv ){
     struct sockaddr_storage remoteaddr; // client address
     socklen_t addrlen;
 
-    //char buf[256];    // buffer for client data
     
-    char buf[BUFSZ];
+    char buf[BUFSZ]; 
+    unsigned short size;
+
     int nbytes;
+
+    std::vector<client> exhibitors; //exhibtiors vector
+    std::vector<client> issuers; //issuers vector
 
     char remoteIP[INET6_ADDRSTRLEN];
 
@@ -132,7 +138,7 @@ int main(int argc, char **argv ){
                     }
                 } else {
                     // handle data from a client
-                    if ((nbytes = recv(i, &servHeader, sizeof( header), 0)) <= 0) {
+                    if ((nbytes = recv(i, &servHeader, sizeof( header ), 0)) <= 0) {
                         // got error or connection closed by client
                         if (nbytes == 0) {
                             // connection closed
@@ -140,56 +146,152 @@ int main(int argc, char **argv ){
                         } else {
                             perror("recv");
                         }
-                        close(i); // bye!
+                        close(i);
                         FD_CLR(i, &master); // remove from master set
                         
                     } else {
                         // we got some data from a client
-                        printf("\n new message from %d: ",i);
-                        printf("recvd: %u %u %u %u", servHeader.msgType, servHeader.msgDestiny, servHeader.msgOrigin, servHeader.msgOrder);
+                        std::cout << "\n new message from " << i <<": "<< std::endl;
+                        std::cout << servHeader.msgType <<" " << servHeader.msgDestiny <<" " << servHeader.msgOrigin <<" " << servHeader.msgOrder << std::endl;
                         
-                        switch ( servHeader.msgType )
-                        {
-                        case 3:
-                            servHeader.msgType = 1; //message accepted;
-                            servHeader.msgOrigin++;
-                            servHeader.msgDestiny++;
-                            
-                            nbytes = send(i, &servHeader, sizeof(header),0);
-                            //nbytes = send(i, &servHeader, sizeof(header),0);
+                        
+                        switch ( servHeader.msgType ){
+                        
+                        case 1:
+                            //"OK" message, from exhibitor to issuer
+                            for( long unsigned int s = 0; s <  issuers.size(); s++){
+                                if( issuers[s].id == servHeader.msgDestiny){
+                                    send(issuers[s].socket, &servHeader, sizeof(header),0);
+                                    break;
+                                }
+                            }
+
+                            break;
+
+                        case 3: 
+                                                        
+                            if( servHeader.msgOrigin == 0){
+                                //recognizes client: exhibitor
+                                struct client e;
+                                e.socket = i; 
+                                e.id = 4096;
+                                exhibitors.push_back(e);
+                                
+                                servHeader.msgType = 1;
+                                servHeader.msgDestiny = e.id;
+                                servHeader.msgOrigin = 65535;
+
+                                send(i,&servHeader,sizeof(header),0);
+                                
+
+                            }else if( servHeader.msgOrigin > 0){
+                                //recognize client: issuer
+                                struct client is;
+                                is.socket = i;
+                                is.id = 1024;
+                                issuers.push_back(is);
+
+                                //checks given exhibitors id:
+                                int aux = -1;
+                                for(long unsigned int s=0; s< exhibitors.size(); s++){
+                                    if( exhibitors[s].id == servHeader.msgDestiny){
+                                    aux++;
+                                    break;
+                                    }
+                                }
+
+                                if (aux >= 0){
+                                    //recognizes associated exhibitor's id
+                                    servHeader.msgType =1;
+                                    servHeader.msgDestiny = is.id;
+                                    servHeader.msgOrigin = 65535;
+                                }else{
+                                    //wrong exhibitor's id was sent
+                                    servHeader.msgType = 2;
+                                    servHeader.msgDestiny = servHeader.msgOrigin;
+                                    servHeader.msgOrigin = 65535;                                    
+                                }
+                                send(i, &servHeader, sizeof(header),0);
+                            }else{
+                                //can't recognize client
+                                servHeader.msgType = 2;
+                                servHeader.msgDestiny = servHeader.msgOrigin;  
+                                servHeader.msgOrigin = 65535;    
+                                send(i,&servHeader, sizeof(header),0);
+                                close(i); //ends connection for safety                         
+                            }
+                        
                             break;
                         case 4:
-                            servHeader.msgType = 1;
+                            
+                            //erases exhibitor's position and closes socket
+                            for( long unsigned int s = 0; s < exhibitors.size(); s++){
+                               if (exhibitors[s].id == servHeader.msgDestiny){
+                                    send(exhibitors[s].socket, &servHeader,sizeof(header),0);
+                                    close(exhibitors[s].socket);
+                                    exhibitors.erase(exhibitors.begin()+(s-1));
+                               }
+                            }
+
+                            //erases issuer's vector position
+                            for ( long unsigned int s = 0; s < issuers.size(); s++){
+                                if( issuers[s].id == servHeader.msgOrigin){
+                                    close(issuers[s].socket);
+                                    issuers.erase( issuers.begin() + (s-1));
+                                }
+                            }
                             break;
+
                         case 5:
-                            servHeader.msgType = 1;
 
                             memset(buf, 0, BUFSZ);
-                            unsigned short size;
+                            size = 0;
                             
-                            nbytes = recv(i, &size,sizeof(size),0); //receives the message size first
-                            printf("\nincomming message of %u characteres\n", size);
-                            //nbytes = send(i, &servHeader, sizeof(header),0);  //sends to exhibitor                            
                             
+                            nbytes = recv(i, &size,sizeof(size),0); //receives the message size first                 
                             nbytes = recv(i, buf, size,0); //receives message 
-                            puts(buf);
-                            // nbytes = send(i, &servHeader, sizeof(header),0); 
+                            
                             if( servHeader.msgDestiny == 0){
 
                                 for(j = 0; j <= fdmax; j++) {
                                     // send to everyone!
                                     if (FD_ISSET(j, &master)) {
                                     // except the listener and ourselves
-                                        if (j != listener && j != i) {
-                                            if (send(j, &servHeader, nbytes, 0) == -1) {
+                                        if (j != listener && j != i) {                                            
+                                            send(j, &servHeader, sizeof(header),0);
+                                            send(j, &size, sizeof(size),0); //sends message's size
+                                            send(j, buf, size,0); //sends message   
+
+                                            if (send(j, &servHeader, sizeof(header), 0) == -1) {
                                                 perror("send");
                                             }
                                         }   
                                     }
                                 }
-
                             }else{
-                                printf("\n mandar pro exibidor");
+                                int aux = 0;
+                                for(long unsigned int s = 0; s <= exhibitors.size(); s++) {
+                                    if ( exhibitors[s].id == servHeader.msgDestiny) {
+                                        send(exhibitors[s].socket, &servHeader,sizeof(header),0);
+                                        send(exhibitors[s].socket, &size, sizeof(size),0); //sends message's size
+                                        send(exhibitors[s].socket, buf,size,0); //sends message
+                                        aux++;
+
+                                        if (send(exhibitors[s].socket, &servHeader, sizeof(header), 0) == -1) {
+                                            perror("send");
+                                        }
+                                        break; 
+                                    }
+                                }
+
+                                if( aux == 0){
+                                    //could not find specified exhibitor
+                                    servHeader.msgType = 2; //sendes "ERROR"(2) type message
+                                    servHeader.msgDestiny = servHeader.msgOrigin;
+                                    servHeader.msgOrigin = 65535;
+                                    send(i, &servHeader, sizeof(header),0);
+                                }
+
                             }
                             break;
 
@@ -203,8 +305,7 @@ int main(int argc, char **argv ){
                             printf("\nERROR\n");
                             exit(EXIT_FAILURE);
                         }
-                        
-                        printf("\nsent: %u %u %u %u", servHeader.msgType, servHeader.msgDestiny, servHeader.msgOrigin, servHeader.msgOrder);
+                        std::cout << "sent: "<< servHeader.msgType <<" " << servHeader.msgDestiny <<" " << servHeader.msgOrigin <<" " << servHeader.msgOrder << std::endl;
                         
                     }
                 } // END handle data from client
