@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <iostream>
 #include "common.h"
 
 //socket libraries:
@@ -24,7 +24,6 @@ int main(int argc, char **argv) {
 	ip = strtok (string, ":");	
 	port = strtok (NULL, ":");
 
-	unsigned short exhibitorID = 0;
 	char buf[BUFSZ];
 
 	struct sockaddr_storage storage;
@@ -49,54 +48,75 @@ int main(int argc, char **argv) {
 
 	printf("connected to %s\n", addrstr);
 	
-	size_t count;
-	struct header exhibitorHeader;
+	struct header exhibitorHeader;	
+	
+	unsigned short exhibitorID = 0;
+
 	exhibitorHeader.msgOrder = 0;
-	exhibitorHeader.msgDestiny = 0;
+	exhibitorHeader.msgDestiny = 65535; //server's ID
 	exhibitorHeader.msgOrigin = exhibitorID;
 
+	
+
 	if( exhibitorHeader.msgOrder == 0 ){
+
 		exhibitorHeader.msgType = 3; // sends an "OI" message (3)
-		count = send(s, &exhibitorHeader, sizeof(header),0);
-		printf("\n sent(oi): %u %u %u %u", exhibitorHeader.msgType, exhibitorHeader.msgOrigin, exhibitorHeader.msgDestiny, exhibitorHeader.msgOrder);
+		send(s, &exhibitorHeader, sizeof(header),0);
 		
-		count = recv(s, &exhibitorHeader, sizeof(header),0);
+		recv(s, &exhibitorHeader, sizeof(header),0);
+
 		exhibitorID = exhibitorHeader.msgDestiny;
-		printf("\n rcvd(oi): %u %u %u %u", exhibitorHeader.msgType, exhibitorHeader.msgOrigin, exhibitorHeader.msgDestiny, exhibitorHeader.msgOrder);
-		printf("oo");exhibitorHeader.msgOrder++;
+		
+		std::cout << "exhibitor connected - ID: " << exhibitorID << std::endl;
 	}
 	
 	if( exhibitorHeader.msgType == 1){
 		
 		while(1){
 
-			count = recv(s, &exhibitorHeader, sizeof(header),0);
+			recv(s, &exhibitorHeader, sizeof(header),0);
 
+			std::cout << "rcvd: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
 			switch (exhibitorHeader.msgType)
 			{
 			case 4:
 				close(s);
-				printf("\n connection terminated");
+				std::cout << "\n connection terminated" << std::endl;
 				exit(EXIT_SUCCESS);
 				break;
 			case 5:
-				count = recv(s,buf,BUFSIZ,0);
-				printf("< message from %u: ", exhibitorHeader.msgOrigin);
-				puts(buf);
+				unsigned short size; memset(buf,0,BUFSZ);
+
+				recv(s, &size, sizeof(size),0 );
+				recv(s, buf, size, 0);
+
+				std::cout <<"\n< message from "<< exhibitorHeader.msgOrigin << ": " <<  buf << std::endl;
+
+				exhibitorHeader.msgType = 1; // "OK" message
+				exhibitorHeader.msgDestiny = exhibitorHeader.msgOrigin;
+				exhibitorHeader.msgOrigin = exhibitorID;
+
+				send(s, &exhibitorHeader, sizeof(header),0);
+				
+				break;
 			default:
+				printf("\nERROR\n");
+				exit(EXIT_FAILURE);
 				break;
 			}
+
+			std::cout << "sent: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
 			
-
-			printf("\n < message from %u:", exhibitorHeader.msgOrigin);
-
 		}
 
 	}else if(exhibitorHeader.msgType == 2){
-		printf("\n falhou");
-	}else{
-		
-		printf("\n unknown msg type: %u %u %u %u",exhibitorHeader.msgType, exhibitorHeader.msgOrigin, exhibitorHeader.msgDestiny, exhibitorHeader.msgOrder);
+		std::cout << "communication failed" << std::endl;
+		close(s);
+		exit(EXIT_FAILURE);
+	}else{		
+		std::cout <<  "unknown message type" << std::endl;
+		close(s);
+		exit(EXIT_FAILURE);
 	}
 	
 }
