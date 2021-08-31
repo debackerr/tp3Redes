@@ -151,7 +151,7 @@ int main(int argc, char **argv ){
                         
                     } else {
                         // we got some data from a client
-                        std::cout << "\n new message from " << i <<": "<< std::endl;
+                        std::cout << "\n new message from " << i <<": ";
                         std::cout << servHeader.msgType <<" " << servHeader.msgDestiny <<" " << servHeader.msgOrigin <<" " << servHeader.msgOrder << std::endl;
                         
                         
@@ -174,35 +174,37 @@ int main(int argc, char **argv ){
                                 //recognizes client: exhibitor
                                 struct client e;
                                 e.socket = i; 
-                                e.id = 4096;
                                 exhibitors.push_back(e);
-                                
+                                e.id = returnsID( exhibitors, 'e');
+                                exhibitors.back().id = e.id;
+
                                 servHeader.msgType = 1;
                                 servHeader.msgDestiny = e.id;
                                 servHeader.msgOrigin = 65535;
 
                                 send(i,&servHeader,sizeof(header),0);
-                                
 
                             }else if( servHeader.msgOrigin > 0){
                                 //recognize client: issuer
                                 struct client is;
                                 is.socket = i;
-                                is.id = 1024;
                                 issuers.push_back(is);
+                                is.id = returnsID(issuers, 'i');
 
                                 //checks given exhibitors id:
-                                int aux = -1;
-                                for(long unsigned int s=0; s< exhibitors.size(); s++){
-                                    if( exhibitors[s].id == servHeader.msgDestiny){
-                                    aux++;
+                                int aux01 = -1;
+
+                                for(long unsigned int t = 0; t < exhibitors.size(); t++){                                   
+                                    if( exhibitors[t].id == servHeader.msgDestiny){
+                                    aux01++; 
+                                    
                                     break;
                                     }
                                 }
 
-                                if (aux >= 0){
+                                if (aux01 >= 0){
                                     //recognizes associated exhibitor's id
-                                    servHeader.msgType =1;
+                                    servHeader.msgType = 1;
                                     servHeader.msgDestiny = is.id;
                                     servHeader.msgOrigin = 65535;
                                 }else{
@@ -246,8 +248,7 @@ int main(int argc, char **argv ){
 
                             memset(buf, 0, BUFSZ);
                             size = 0;
-                            
-                            
+                                                        
                             nbytes = recv(i, &size,sizeof(size),0); //receives the message size first                 
                             nbytes = recv(i, buf, size,0); //receives message 
                             
@@ -295,8 +296,35 @@ int main(int argc, char **argv ){
                             }
                             break;
 
-                        case 6:
+                        case 6:{
                             servHeader.msgType = 7; //sends CLIST
+                            unsigned short N = issuers.size() + exhibitors.size();
+                            unsigned short clist[N];
+                            for( long unsigned int s = 0; s < N; s++){                                
+                                if( s >= issuers.size()){
+                                    clist[s] = exhibitors[N-s].id;
+                                }else{
+                                    clist[s] = issuers[s].id;
+                                }
+                            }
+
+                            if (servHeader.msgDestiny == 0){
+                                for(j = 0; j <= fdmax; j++) {
+                                    // send to everyone!
+                                    if (FD_ISSET(j, &master)) {
+                                    // except the listener and ourselves
+                                        if (j != listener && j != i) {                                            
+                                            send(j, &servHeader, sizeof(header),0);
+                                            send(j, &N, sizeof(N),0);
+                                            send(j, &clist, N, 0);
+                                            if (send(j, &servHeader, sizeof(header), 0) == -1) {
+                                                perror("send");
+                                            }
+                                        }   
+                                    }
+                                }
+                            }
+                        }
                             break;
                         case 8:
                             servHeader.msgType = 9;
