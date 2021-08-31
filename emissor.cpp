@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <iostream>
 #include "common.h"
 
 //socket libraries:
@@ -19,6 +19,13 @@ int main(int argc, char **argv) {
 	strcpy(string, argv[1]);
 	char * ip = strtok (string, ":");	//gets IP
 	char * port = strtok (NULL, ":"); //gets port
+
+	if( argv[2] < 0){
+		std::cout <<" missing exhibitor's ID" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	unsigned short exhibitorID = atoi(argv[2]);
 
 	// socket parse:
 	struct sockaddr_storage storage;
@@ -46,79 +53,82 @@ int main(int argc, char **argv) {
 	//communication variables:
 	size_t count;
 	struct header issuerHeader;
+
 	char buf[BUFSZ];
-	
+	unsigned short issuerID = 1;
+
 	issuerHeader.msgOrder = 0;
-	issuerHeader.msgOrigin = 0; 
-	issuerHeader.msgDestiny = 0; 
+	issuerHeader.msgOrigin = issuerID; 
+	issuerHeader.msgDestiny = exhibitorID; 
+	
 
 	if( issuerHeader.msgOrder == 0){
 		//sends an "OI" message type (3)
 		issuerHeader.msgType = 3; 
 		count = send(s, &issuerHeader, sizeof(header), 0);
-		printf("\n sent(oi):%u %u %u %u\n",issuerHeader.msgType, issuerHeader.msgOrigin, issuerHeader.msgDestiny, issuerHeader.msgOrder);
-		if (count != sizeof(issuerHeader)) {
+		
+		if (count != sizeof(header)) {
 			logexit("send");  //in case of error
 		}
 
 		count = recv(s, &issuerHeader, sizeof(header),0); 
-		printf("\n rcvd(oi) :%u %u %u %u\n",issuerHeader.msgType, issuerHeader.msgOrigin, issuerHeader.msgDestiny, issuerHeader.msgOrder);
-		issuerHeader.msgOrder++;
+
+		issuerID = issuerHeader.msgDestiny; //this issuer ID
+
+		
 	}
 	
 	if( issuerHeader.msgType == 1){
+		std::cout << "\nissuer connected - ID:" << issuerID << std::endl;
 		//connection accepted
 		while(1){
-				
-					
+
+				issuerHeader.msgOrder++;
+				issuerHeader.msgOrigin = issuerID;
 				issuerHeader.msgType = getsType();
 
 				if(issuerHeader.msgType == 4){
-
+					issuerHeader.msgDestiny = exhibitorID;
 					count = send(s,&issuerHeader, sizeof(header),0);
 					close(s);
-					printf("\n connection terminated");
+					std::cout << "\n connection terminated" << std::endl;
 					exit(EXIT_SUCCESS);
-
-				} else{
-					
-					printf("\nchoose message's destiny: \n > [0] all exhibitors\n > [%u] connected exhibitor\n>> ", issuerHeader.msgDestiny);
-						
-					unsigned int d; fflush(stdin);
-					scanf("%u", &d);
-					if( d == 0){
-						issuerHeader.msgDestiny = 0;
-					}else if(d != issuerHeader.msgDestiny){
-						printf("\n invalid destiny");
-					}
+				} else {
+															
+					issuerHeader.msgDestiny = getsDestiny(exhibitorID);
 
 					if( issuerHeader.msgType == 5){
 
 						count = send(s, &issuerHeader, sizeof(header),0);
-						printf("\n sent(5):%u %u %u %u\n",issuerHeader.msgType, issuerHeader.msgOrigin, issuerHeader.msgDestiny, issuerHeader.msgOrder);
-						
-						printf("\n> send message to %u: ", issuerHeader.msgDestiny);
-						memset(buf, 0, BUFSZ); fflush(stdin);
-						fgets(buf, BUFSZ-1, stdin); fgets(buf, BUFSIZ-1, stdin); //both fgets() are needed 
+												
+						std::cout <<"\n> send message to " << issuerHeader.msgDestiny << ": " << std::endl;
+						memset(buf, 0, BUFSZ); 
+						std::cin.ignore();
+						std::cin.getline(buf,BUFSZ);					
 
-						unsigned short size = strlen(buf)-1;
-						count = send(s, &size,sizeof(size),0);
-						count = send(s, buf, sizeof(buf), 0);
-						issuerHeader.msgOrder++;
-							
-						count = recv(s, &issuerHeader, sizeof(header),0);
-						printf("\n rcv(5):%u %u %u %u\n",issuerHeader.msgType, issuerHeader.msgOrigin, issuerHeader.msgDestiny, issuerHeader.msgOrder);
+						unsigned short size = strlen(buf);
+						count = send(s, &size,sizeof(size),0); //sends message's size first
+						count = send(s, buf, size, 0); //sends message
+												
+						count = recv(s, &issuerHeader, sizeof(header),0); //receives an "OK" message
+						
 						if( issuerHeader.msgType == 1){
-							printf("\nmessage sent!");
+							std::cout << "\n message delivered!" << std::endl;
 						}
+						issuerHeader.msgOrder++;
 					}
 				} 
 		}
 
 	}else if( issuerHeader.msgType == 2){
-			printf("\n communication unnaccepted");
+		std::cout << "\n communication failed" << std::endl;
+		close(s);
+		exit(EXIT_FAILURE);
+
 	}else{
-		printf("\n unknown error");
+		std::cout << "\n unknown message type" << std::endl;
+		close(s);
+		exit(EXIT_FAILURE);
 	}
 	
 }
