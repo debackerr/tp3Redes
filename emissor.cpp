@@ -97,8 +97,9 @@ int main(int argc, char **argv) {
 															
 					issuerHeader.msgDestiny = getsDestiny(exhibitorID);
 
-					if( issuerHeader.msgType == 5){
-
+					switch (issuerHeader.msgType)
+					{
+					case 5:{
 						count = send(s, &issuerHeader, sizeof(header),0);
 												
 						std::cout <<"\n> send message to " << issuerHeader.msgDestiny << ": " << std::endl;
@@ -115,7 +116,23 @@ int main(int argc, char **argv) {
 						if( issuerHeader.msgType == 1){
 							std::cout << "\n message delivered!" << std::endl;
 						}
+
 						issuerHeader.msgOrder++;
+					}
+						break;
+					case 6:
+						count = send(s, &issuerHeader, sizeof(header),0);
+
+						recv(s, &issuerHeader, sizeof(header),0); //receives an "OK" message
+						if( issuerHeader.msgType == 1){
+							std::cout << "\n message delivered!" << std::endl;
+						}
+
+						issuerHeader.msgOrder++;
+						break;
+					default:
+						std::cout << "invalid option" << std::endl;
+						break;
 					}
 				} 
 		}
