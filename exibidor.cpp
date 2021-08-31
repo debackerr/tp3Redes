@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
 
 		exhibitorID = exhibitorHeader.msgDestiny;
 		
-		std::cout << "exhibitor connected - ID: " << exhibitorID << std::endl;
+		std::cout << "\nexhibitor connected - ID: " << exhibitorID << std::endl;
 	}
 	
 	if( exhibitorHeader.msgType == 1){
@@ -75,46 +75,72 @@ int main(int argc, char **argv) {
 		while(1){
 
 			recv(s, &exhibitorHeader, sizeof(header),0);
-
-			std::cout << "rcvd: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
-			switch (exhibitorHeader.msgType)
-			{
-			case 4:
-				close(s);
-				std::cout << "\n connection terminated" << std::endl;
-				exit(EXIT_SUCCESS);
-				break;
-			case 5:
-				unsigned short size; memset(buf,0,BUFSZ);
-
-				recv(s, &size, sizeof(size),0 );
-				recv(s, buf, size, 0);
-
-				std::cout <<"\n< message from "<< exhibitorHeader.msgOrigin << ": " <<  buf << std::endl;
-
-				exhibitorHeader.msgType = 1; // "OK" message
+			
+			if( exhibitorHeader.msgDestiny != exhibitorID){
+				exhibitorHeader.msgType = 2;
 				exhibitorHeader.msgDestiny = exhibitorHeader.msgOrigin;
 				exhibitorHeader.msgOrigin = exhibitorID;
+			}else{
+				std::cout << "rcvd: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
+				switch (exhibitorHeader.msgType)
+				{
+					case 4:
+						close(s);
+						std::cout << "\n connection terminated" << std::endl;
+						exit(EXIT_SUCCESS);
+						break;
+					case 5:
+						unsigned short size; memset(buf,0,BUFSZ);
 
-				send(s, &exhibitorHeader, sizeof(header),0);
+						recv(s, &size, sizeof(size),0 );
+						recv(s, buf, size, 0);
+
+						std::cout <<"\n< message from "<< exhibitorHeader.msgOrigin << ": " <<  buf << std::endl;
+
+						exhibitorHeader.msgType = 1; // "OK" message
+						exhibitorHeader.msgDestiny = exhibitorHeader.msgOrigin;
+						exhibitorHeader.msgOrigin = exhibitorID;
+
+						send(s, &exhibitorHeader, sizeof(header),0);
 				
-				break;
-			default:
-				printf("\nERROR\n");
-				exit(EXIT_FAILURE);
-				break;
-			}
+						break;
+					case 7:{
+						unsigned short N = 0;
+				
+						recv(s, &N, sizeof(N),0 );
+						std::cout << "CLIST: " << N << " clients connected:" << std::endl;
+						unsigned short clist[N];
+						recv(s,clist, N, 0 );
 
-			std::cout << "sent: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
+						for( int i = 0; i < N; i++){
+							std::cout << clist[i] << std::endl;
+						}
+
+						exhibitorHeader.msgOrigin = 1;
+						exhibitorHeader.msgDestiny = exhibitorHeader.msgOrigin;
+						exhibitorHeader.msgOrigin = exhibitorID;
+
+						send(s, &exhibitorHeader, sizeof(exhibitorHeader), 0);
+					}
+						break;
+					default:
+						printf("\nERROR\n");
+						exit(EXIT_FAILURE);
+						break;
+					}
+
+				std::cout << "sent: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
 			
+			}
 		}
+			
 
 	}else if(exhibitorHeader.msgType == 2){
-		std::cout << "communication failed" << std::endl;
+		std::cout << "\ncommunication failed" << std::endl;
 		close(s);
 		exit(EXIT_FAILURE);
 	}else{		
-		std::cout <<  "unknown message type" << std::endl;
+		std::cout <<  "\nunknown message type" << std::endl;
 		close(s);
 		exit(EXIT_FAILURE);
 	}
