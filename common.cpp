@@ -106,7 +106,6 @@ unsigned short getsType(){
     printf("\nselect message type:");
     printf("\n  [4] disconnect from server");
     printf("\n  [5] send text message");
-    printf("\n  [8] send file message");
     printf("\n  [6] CREQ\n>>");
 
     unsigned int type; scanf("%u", &type);
