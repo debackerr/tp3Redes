@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 				exhibitorHeader.msgDestiny = exhibitorHeader.msgOrigin;
 				exhibitorHeader.msgOrigin = exhibitorID;
 			}else{
-				std::cout << "rcvd: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
+				
 				switch (exhibitorHeader.msgType)
 				{
 					case 4:
@@ -121,15 +121,16 @@ int main(int argc, char **argv) {
 						exhibitorHeader.msgOrigin = exhibitorID;
 
 						send(s, &exhibitorHeader, sizeof(exhibitorHeader), 0);
-					}
 						break;
+					}
+						
 					default:
 						printf("\nERROR\n");
 						exit(EXIT_FAILURE);
 						break;
 					}
 
-				std::cout << "sent: " << exhibitorHeader.msgType << " " << exhibitorHeader.msgDestiny << " " << exhibitorHeader.msgOrigin << " " << exhibitorHeader.msgOrder << std::endl;
+				
 			
 			}
 		}
