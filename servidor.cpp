@@ -323,6 +323,30 @@ int main(int argc, char **argv ){
                                         }   
                                     }
                                 }
+                            }else{
+                                int aux = 0;
+                                for(long unsigned int s = 0; s <= exhibitors.size(); s++) {
+                                    if ( exhibitors[s].id == servHeader.msgDestiny) {
+                                        send(exhibitors[s].socket, &servHeader,sizeof(header),0);
+                                        send(j, &N, sizeof(N),0);
+                                        send(j, &clist, N, 0);
+                                        aux++;
+
+                                        if (send(exhibitors[s].socket, &servHeader, sizeof(header), 0) == -1) {
+                                            perror("send");
+                                        }
+                                        break; 
+                                    }
+                                }
+
+                                if( aux == 0){
+                                    //could not find specified exhibitor
+                                    servHeader.msgType = 2; //sendes "ERROR"(2) type message
+                                    servHeader.msgDestiny = servHeader.msgOrigin;
+                                    servHeader.msgOrigin = 65535;
+                                    send(i, &servHeader, sizeof(header),0);
+                                }
+
                             }
                         }
                             break;
